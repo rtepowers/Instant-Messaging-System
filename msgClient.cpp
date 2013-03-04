@@ -27,6 +27,23 @@ const char ENTER_SYM = '\n';
 WINDOW *INPUT_SCREEN;
 WINDOW *MSG_SCREEN;
 
+// Data Structures
+struct sockAddr {
+  unsigned short sa_family;   // Address family (AF_INET)
+  char sa_data[14];           // Protocol-specific addressinfo
+};
+
+struct in_address {
+  unsigned long s_addr;       // Internet Address (32bits)
+};
+
+struct sockAddress_in {
+  unsigned short sin_family;  // Address family (AF_INET)
+  unsigned short sin_port;    // Port (16bits)
+  struct in_addr sin_addr;    // Internet address structure
+  char sin_zero[8];           // Not Used.
+};
+
 // Function Prototypes
 void clearInputScreen();
 // Function resets InputScreen to default state.
@@ -43,12 +60,122 @@ void displayMsg(string& msg);
 // pre: ChatScreen should exist.
 // post: none
 
+void prepareWindows();
+// Function prepares user interface
+// pre: none
+// post: none
+
+int openSocket (string hostName, unsigned short serverPort);
+// Function sets up a working socket to use in sending data.
+// pre: none
+// post: none
+
 int main (int argNum, char* argValues[]) {
 
   // Locals
   string inputStr;
+  string hostname;
+  unsigned short serverPort;
+  int hostSock;
+
+  // Need to grab Command-line arguments and convert them to useful types
+  // Initialize arguments with proper variables.
+  if (argNum < 3 || argNum > 3){
+    // Incorrect number of arguments
+    cerr << "Incorrect number of arguments. Please try again." << endl;
+    return -1;
+  }
+
+  // Need to store arguments
+  hostname = argValues[1];
+  serverPort = atoi(argValues[2]);
 
   // Begin User Interface
+  prepareWindows();
+
+  // Establish a socket Connection
+  hostSock = openSocket(hostname, serverPort);
+  
+  if (hostSock > 0 ) {
+    // Enter a loop to begin
+    while (true) {
+      // If the user finished typing a message, get it and process it.
+      if (getUserInput(inputStr)) {
+
+	// If it's a command, handle it.
+	if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit")
+	  break;
+          
+	// Display the message in the chat window.
+	displayMsg(inputStr);
+	inputStr.clear();
+
+	/*
+	  TODO - 
+	  SendMessage(hostSock, inputStr);
+
+	  string HostMsg = ReceiveMessage(hostSock);
+	  displayMsg(HostMsg);
+	 */
+          
+	// Make sure to reset for the next user input.
+	clearInputScreen();
+      }
+    }
+  }
+  // Clean up and Close things down.
+  delwin(INPUT_SCREEN);
+  delwin(MSG_SCREEN);
+  endwin();
+  close(hostSock);
+
+  return 0;
+}
+
+int openSocket (string hostName, unsigned short serverPort) {
+
+  // Local variables.
+  struct hostent* host;
+  int status;
+  int bytesRecv;
+
+  // Create a socket and start server communications.
+  int hostSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (hostSock <= 0) {
+    // Socket was unsuccessful.
+    cerr << "Socket was unable to be opened." << endl;
+    return -1;
+  }
+
+  // Get host IP and Set proper fields
+  host = gethostbyname(hostName.c_str());
+  if (!host) {
+    cerr << "Unable to resolve hostname's ip address. Exiting..." << endl;
+    return -1;
+  }
+  char* tmpIP = inet_ntoa( *(struct in_addr *)host->h_addr_list[0]);
+  unsigned long serverIP;
+  status = inet_pton(AF_INET, tmpIP,(void*) &serverIP);
+  if (status <= 0) return -1;
+
+  struct sockAddress_in serverAddress;
+  serverAddress.sin_family = AF_INET;
+  serverAddress.sin_addr.s_addr = serverIP ;
+  serverAddress.sin_port = htons(serverPort);
+
+  // Now that we have the proper information, we can open a connection.
+  status = connect(hostSock, (struct sockaddr *) &serverAddress, sizeof(serverAddress));
+  if (status < 0) {
+    cerr << "Error with the connection." << endl;
+    return -1;
+  }
+
+  return hostSock;
+}
+
+void prepareWindows() {
+
+  // Initialize Screen
   initscr();
 
   // Set timeout of input to 2 miliseconds.
@@ -66,30 +193,6 @@ int main (int argNum, char* argValues[]) {
   // Prepare Input Screen.
   clearInputScreen();
   
-  // Enter a loop to 
-  while (true) {
-    // If the user finished typing a message, get it and process it.
-    if (getUserInput(inputStr)) {
-
-      // If it's a command, handle it.
-      if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit")
-	break;
-          
-      // Display the message in the chat window.
-      displayMsg(inputStr);
-      inputStr.clear();
-          
-      // Make sure to reset for the next user input.
-      clearInputScreen();
-    }
-  }
-
-  // Clean up and Close things down.
-  delwin(INPUT_SCREEN);
-  delwin(MSG_SCREEN);
-  endwin();
-
-  return 0;
 }
 
 void clearInputScreen() {
