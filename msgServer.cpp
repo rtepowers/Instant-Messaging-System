@@ -271,6 +271,7 @@ void InstantMessage(int clientSock) {
       stringstream ss;
       ss << "Login was successful!" << endl;
       string msg = ss.str();
+      cout << msg;
       if (!SendInteger(clientSock, msg.length()+1)) {
 	cerr << "Unable to send Int. " << endl;
 	break;
@@ -281,11 +282,12 @@ void InstantMessage(int clientSock) {
       }
     } else {
       // Check if user exists, if not then add them.
-      if (checkUser(userName)) {
+      if (doesUserExist(userName)) {
 	// Send back a failure message.
 	stringstream ss;
-	ss << "Login has failed." << endl;
+	ss << "Login has failed.\n";
 	string msg = ss.str();
+	cout << msg;
 	if (!SendInteger(clientSock, msg.length()+1)) {
 	  cerr << "Unable to send Int. " << endl;
 	  break;
@@ -298,8 +300,9 @@ void InstantMessage(int clientSock) {
 	hasAuthenticated = true;
 	// Send back a successful message.
 	stringstream ss;
-	ss << "User was successfully created!" << endl;
+	ss << "Login was successful!" << endl;
 	string msg = ss.str();
+	cout << msg;
 	if (!SendInteger(clientSock, msg.length()+1)) {
 	  cerr << "Unable to send Int. " << endl;
 	  break;
@@ -326,7 +329,7 @@ void InstantMessage(int clientSock) {
     if (hasRead) {
       // Send Data.
       stringstream ss;
-      ss << "This is Message #" << messageID++;
+      ss << "This is Message #" << messageID++ << endl;
       string msg = ss.str();
       cout << msg << endl;
       if (!SendInteger(clientSock, msg.length()+1)) {

@@ -65,7 +65,7 @@ void clearInputScreen();
 // pre: InputScreen should exist.
 // post: none
 
-bool getUserInput(string& inputStr);
+bool getUserInput(string& inputStr, bool isPwd);
 // Function tests whether the user has typed a message.
 // pre: InputScreen should exist.
 // post: none
@@ -139,13 +139,61 @@ int main (int argNum, char* argValues[]) {
   FD_SET(hostSock, &hostfd);
   numberOfSocks = hostSock + 1;
   
+  // Login State
+  bool hasAuthenticated = false;
+  string username = "";
+  string userpwd = "";
+  while (!hasAuthenticated) {
+    string tmp = "Please enter your username. \n(A new account will be created if this is your first login.)\n";
+    displayMsg(tmp);
+    while (true) {
+      if (getUserInput(username, false)) {
+	clearInputScreen();
+	break;
+      }
+    }
+    tmp = "Please enter your password.\n";
+    displayMsg(tmp);
+    while (true) {
+      if (getUserInput(userpwd, true)) {
+	clearInputScreen();
+	break;
+      }
+    }
+
+    // Send User Credentials.
+    SendInteger(hostSock, username.length()+1);
+    SendMessage(hostSock, username);
+    SendInteger(hostSock, userpwd.length()+1);
+    SendMessage(hostSock, userpwd);
+
+    // Receive Response.
+    long msgLength = GetInteger(hostSock);
+    if (msgLength <= 0) {
+      cerr << "Couldn't get integer from Host." << endl;
+      break;
+    }
+    string HostMsg = GetMessage(hostSock, msgLength);
+    if (HostMsg == "") {
+      cerr << "Couldn't get message from Host." << endl;
+      break;
+    }
+    displayMsg(HostMsg);
+    stringstream ss;
+    ss << "Login was successful!" << endl;
+    if (HostMsg == ss.str()) {
+      // Login Successful.
+      hasAuthenticated = true;
+    }
+  }
+
   
   if (hostSock > 0 ) {
     // Enter a loop to begin
     while (true) {
 
       // If the user finished typing a message, get it and process it.
-      if (getUserInput(inputStr)) {
+      if (getUserInput(inputStr, false)) {
 
 	// If it's a command, handle it.
 	if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit") {
@@ -157,6 +205,7 @@ int main (int argNum, char* argValues[]) {
 	// Display the message in the chat window.
 	string tmp = "You said: ";
 	tmp.append(inputStr);
+	tmp.append("\n");
 	displayMsg(tmp);
 	//inputStr.clear();
 
@@ -371,7 +420,7 @@ void clearInputScreen() {
 
 }
 
-bool getUserInput(string& inputStr) {
+bool getUserInput(string& inputStr, bool isPwd) {
 
   // Locals
   bool success = false;
@@ -387,17 +436,21 @@ bool getUserInput(string& inputStr) {
   // Can we display the text? Add to inputStr if yes.
   if (isprint(userText)) {
     inputStr += (char)userText;
-    waddch(INPUT_SCREEN, userText);
+    if (!isPwd) {
+      waddch(INPUT_SCREEN, userText);
+    }
   }
   // Pressing <enter> signals that the user has 'sent' something.
   else {
     // Allow for Backspacing.
     if (userText == BACKSPACE_SYM || userText == DELETE_SYM) {
-      inputStr.replace(inputStr.length()-1, 1, "");
-      wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
-      userText = 32;
-      waddch(INPUT_SCREEN, userText);
-      wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
+      if (inputStr.length() > 0) {
+	inputStr.replace(inputStr.length()-1, 1, "");
+	wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
+	userText = 32;
+	waddch(INPUT_SCREEN, userText);
+	wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
+      }
 
       // Show new screen.
       wrefresh(INPUT_SCREEN);
@@ -426,7 +479,7 @@ void displayMsg(string &msg) {
     wbkgd(MSG_SCREEN, COLOR_PAIR(1));
   }
   waddstr(MSG_SCREEN, msg.c_str());
-  waddch(MSG_SCREEN, '\n');
+  //waddch(MSG_SCREEN, '\n');
   
   // Show new screen.
   wrefresh(MSG_SCREEN);
