@@ -97,6 +97,11 @@ void processMsg(string &msg, string &cmdName, string &userTo);
 // pre: cmdName and userTo should be "" by default.
 // post: msg will be reduced in size.
 
+void SaveMsg(string msg, string userFrom);
+// Function takes data from Thread and processes the message and then finally adds to a queue.
+// pre: none
+// post: none
+
 int main(int argc, char* argv[]){
 
   // Local Vars
@@ -334,6 +339,7 @@ bool SendInteger(int HostSock, int hostInt) {
 
 void addToMsgQueue(Msg newMsg) {
   pthread_mutex_lock(&MsgQueueLock);
+  MsgQueue.push_back(newMsg);
   pthread_mutex_unlock(&MsgQueueLock);
 }
 
@@ -348,7 +354,7 @@ void SaveMsg(string msg, string userFrom) {
   processMsg(newMsg.msg, newMsg.cmd, newMsg.to);
 
   if (newMsg.to == "all") {
-    // Global Message
+    // Global Message, need to add a message for all connected users.
   } else {
     // Regular Private message.
     addToMsgQueue(newMsg);
@@ -362,32 +368,36 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
   // into
   // (blahblahblah, /msg, user)
 
-  if (msg[0] == "/") {
+  if (msg.c_str()[0] == '/') {
     // Was a Command, Let's figure out what it was.
     int cmdSize = 0;
     for (int i = 1; i < msg.length(); i++) {
-      if (msg[i] == " ") {
+      if (msg.c_str()[i] == ' ') {
 	cmdSize = i;
 	break;
       }
     }
     // Build Command name
     for (int i = 0; i < cmdSize; i++) {
-      cmdName.append(msg[i]);
+      stringstream ss;
+      ss << msg.c_str()[i];
+      cmdName.append(ss.str());
     }
 
     int userSize = 0;
     if (cmdName == "/msg") {
       // Need to grab user information.
       for (int i = cmdSize; i < msg.length(); i++) {
-	if (msg[i] == " " ) {
+	if (msg.c_str()[i] == ' ' ) {
 	  userSize = i;
 	  break;
 	}
       }
       // Build UserTo
       for (int i = cmdSize; i < userSize; i++) {
-	userTo.append(msg[i]);
+	stringstream ss;
+	ss << msg.c_str()[i];
+	userTo.append(ss.str());
       }
     }
     
@@ -396,5 +406,64 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 
   } else {
     userTo.append("all");
+  }
+}
+
+void addToUsersList (User newUser) {
+  pthread_mutex_lock(&UserListLock);
+  UsersList.insert (make_pair<string, User> (newUser.username, newUser));
+  pthread_mutex_unlock(&UserListLock);
+}
+
+bool doesUserExist (User newUser) {
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::const_iterator got = UsersList.find (newUser.username);
+  if (got == UsersList.end() ) {
+    pthread_mutex_unlock(&UserListLock);
+    return false;
+  } else {
+    pthread_mutex_unlock(&UserListLock);
+    return true;
+  }
+  pthread_mutex_unlock(&UserListLock);
+}
+
+bool isUserConnected (User newUser) {
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::const_iterator got = UsersList.find (newUser.username);
+  if (got == UsersList.end() ) {
+    pthread_mutex_unlock(&UserListLock);
+    return false;
+  } else {
+    if (got->second.isConnected) {
+      pthread_mutex_unlock(&UserListLock);
+      return true;
+    } else {
+      pthread_mutex_unlock(&UserListLock);
+      return false;
+    }
+  }
+  pthread_mutex_unlock(&UserListLock);
+}
+
+void setUserConnected (User newUser) {
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::iterator got = UsersList.find (newUser.username);
+  if (got == UsersList.end() ) {
+    pthread_mutex_unlock(&UserListLock);
+  } else {
+    got->second.isConnected = true;
+    pthread_mutex_unlock(&UserListLock);
+  }
+}
+
+void setUserDisconnected (User newUser) {
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::iterator got = UsersList.find (newUser.username);
+  if (got == UsersList.end() ) {
+    pthread_mutex_unlock(&UserListLock);
+  } else {
+    got->second.isConnected = false;
+    pthread_mutex_unlock(&UserListLock);
   }
 }
