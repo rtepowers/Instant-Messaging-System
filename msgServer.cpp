@@ -14,6 +14,8 @@
 // Network Functions
 #include<sys/types.h>
 #include<sys/socket.h>
+#include<sys/select.h>
+#include<sys/time.h>
 #include<netinet/in.h>
 #include<arpa/inet.h>
 #include<unistd.h>
@@ -22,6 +24,9 @@
 #include<pthread.h>
 
 using namespace std;
+
+// GLOBALS
+const int MAXPENDING = 20;
 
 // DATA TYPES
 struct threadArgs{
@@ -62,7 +67,6 @@ long GetInteger(int HostSocks);
 int main(int argc, char* argv[]){
 
   // Local Vars
-  unsigned short serverPort = 12061;
 
   // Process Arguments
   unsigned short serverPort; 
@@ -147,14 +151,76 @@ void* clientThread(void* args_p) {
   close(clientSock);
 
   // Quit thread
-  pthread_exit(NULL);
+  //pthread_exit(NULL);
 }
 
 void InstantMessage(int clientSock) {
 
   // Locals
+  string clientMsg = "";
+  long clientMsgLength = 0;
+  int messageID = 1;
+  fd_set clientfd;
+  struct timeval tv;
+  int numberOfSocks = 0;
+  bool hasRead = true;
 
-  
+  // Clear FD_Set and set timeout.
+  FD_ZERO(&clientfd);
+  tv.tv_sec = 3;
+  tv.tv_usec = 100000;
+
+  // Initialize Data
+  FD_SET(clientSock, &clientfd);
+  numberOfSocks = clientSock + 1;
+
+  while (clientMsg != "/quit" && clientMsg != "/close") {
+
+    if (hasRead) {
+      // Send Data.
+      stringstream ss;
+      ss << "This is Message #" << messageID++;
+      string msg = ss.str();
+      cout << msg << endl;
+      if (!SendInteger(clientSock, msg.length()+1)) {
+	cerr << "Unable to send Int. " << endl;
+	break;
+      }
+
+      if (!SendMessage(clientSock, msg)) {
+	cerr << "Unable to send Message. " << endl;
+	break;
+      }
+      hasRead = false;
+    }
+
+    // Read Data
+    int pollSock = select(numberOfSocks, &clientfd, NULL, NULL, &tv);
+    tv.tv_sec = 3;
+    tv.tv_usec = 100000;
+    FD_SET(clientSock, &clientfd);
+    if (pollSock != 0 && pollSock != -1) {
+      string tmp;
+      long msgLength = GetInteger(clientSock);
+      if (msgLength <= 0) {
+	cerr << "Couldn't get integer from Client." << endl;
+	break;
+      }
+      string clientMsg = GetMessage(clientSock, msgLength);
+      if (clientMsg == "") {
+	cerr << "Couldn't get message from Client." << endl;
+	break;
+      }
+      tmp = "Client Said: ";
+      tmp.append(clientMsg);
+      cout << tmp << endl;
+      tmp.clear();
+      hasRead = true;
+    }
+
+  }
+
+  cout << "Closing Thread." << endl;
 }
 
 

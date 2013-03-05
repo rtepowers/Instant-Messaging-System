@@ -11,6 +11,8 @@
 // Network Function
 #include<sys/types.h>
 #include<sys/socket.h>
+#include<sys/select.h>
+#include<sys/time.h>
 #include<netinet/in.h>
 #include<arpa/inet.h>
 #include<unistd.h>
@@ -28,6 +30,8 @@ const char BACKSPACE_SYM = '\b';
 const int DELETE_SYM = 127;
 WINDOW *INPUT_SCREEN;
 WINDOW *MSG_SCREEN;
+fd_set hostfd;
+struct timeval tv;
 const short MSG_COLOR_BLACK = 0;
 const short MSG_COLOR_RED = 1;
 const short MSG_COLOR_GREEN = 2;
@@ -108,6 +112,12 @@ int main (int argNum, char* argValues[]) {
   string hostname;
   unsigned short serverPort;
   int hostSock;
+  int numberOfSocks;
+
+  // Clear FD_Set and set timeout.
+  FD_ZERO(&hostfd);
+  tv.tv_sec = 0;
+  tv.tv_usec = 100000;
 
   // Need to grab Command-line arguments and convert them to useful types
   // Initialize arguments with proper variables.
@@ -126,32 +136,67 @@ int main (int argNum, char* argValues[]) {
 
   // Establish a socket Connection
   hostSock = openSocket(hostname, serverPort);
+  FD_SET(hostSock, &hostfd);
+  numberOfSocks = hostSock + 1;
+  
   
   if (hostSock > 0 ) {
     // Enter a loop to begin
     while (true) {
+
       // If the user finished typing a message, get it and process it.
       if (getUserInput(inputStr)) {
 
 	// If it's a command, handle it.
-	if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit")
+	if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit") {
+	  SendInteger(hostSock, inputStr.length()+1);
+	  SendMessage(hostSock, inputStr);
 	  break;
+	}
           
 	// Display the message in the chat window.
-	displayMsg(inputStr);
+	string tmp = "You said: ";
+	tmp.append(inputStr);
+	displayMsg(tmp);
+	//inputStr.clear();
+
+	// Send to Server
+	if (!SendInteger(hostSock, inputStr.length()+1)) {
+	  cerr << "Unable to send Int. " << endl;
+	  break;
+	}
+
+	if (!SendMessage(hostSock, inputStr)) {
+	  cerr << "Unable to send Message. " << endl;
+	  break;
+	}
 	inputStr.clear();
-
-	/*
-	  TODO - 
-	  SendMessage(hostSock, inputStr);
-	  inputStr.clear();
-
-	  string HostMsg = ReceiveMessage(hostSock);
-	  displayMsg(HostMsg);
-	 */
           
 	// Make sure to reset for the next user input.
 	clearInputScreen();
+      }
+
+      // Check for Messages
+      int pollSock = select(numberOfSocks, &hostfd, NULL, NULL, &tv);
+      tv.tv_sec = 0;
+      tv.tv_usec = 100000;
+      FD_SET(hostSock, &hostfd);
+      if (pollSock != 0 && pollSock != -1) {
+	string tmp;
+	long msgLength = GetInteger(hostSock);
+	if (msgLength <= 0) {
+	  cerr << "Couldn't get integer from Host." << endl;
+	  break;
+	}
+	string HostMsg = GetMessage(hostSock, msgLength);
+	if (HostMsg == "") {
+	  cerr << "Couldn't get message from Host." << endl;
+	  break;
+	}
+	tmp = "/Host said: ";
+	tmp.append(HostMsg);
+	displayMsg(tmp);
+	tmp.clear();
       }
     }
   }
@@ -288,7 +333,8 @@ void prepareWindows() {
   start_color();
 
   // Set timeout of input to 2 miliseconds.
-  halfdelay(2);
+  halfdelay(1);
+  //nodelay(INPUT_SCREEN, true);
 
   // Create new MSG_SCREEN window and enable scrolling of text.
   noecho();
@@ -369,10 +415,19 @@ bool getUserInput(string& inputStr) {
 void displayMsg(string &msg) {
   
   // Add Msg to screen.
+  if (msg.c_str()[0] == '/') {
+    init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
+    wbkgd(MSG_SCREEN, COLOR_PAIR(2));
+    
+  } else {
+    // SET Colors for window.
+    init_pair(1, COLOR_CYAN, COLOR_BLACK);
+    wbkgd(MSG_SCREEN, COLOR_PAIR(1));
+  }
   waddstr(MSG_SCREEN, msg.c_str());
   waddch(MSG_SCREEN, '\n');
   
-
   // Show new screen.
   wrefresh(MSG_SCREEN);
+
 }
