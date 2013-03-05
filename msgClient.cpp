@@ -24,8 +24,19 @@ using namespace std;
 // GLOBALS
 const int INPUT_LINES = 2;
 const char ENTER_SYM = '\n';
+const char BACKSPACE_SYM = '\b';
+const int DELETE_SYM = 127;
 WINDOW *INPUT_SCREEN;
 WINDOW *MSG_SCREEN;
+const short MSG_COLOR_BLACK = 0;
+const short MSG_COLOR_RED = 1;
+const short MSG_COLOR_GREEN = 2;
+const short MSG_COLOR_YELLOW = 3;
+const short MSG_COLOR_BLUE = 4;
+const short MSG_COLOR_MAGENTA = 5;
+const short MSG_COLOR_CYAN = 6;
+const short MSG_COLOR_WHITE = 7;
+
 
 // Data Structures
 struct sockAddr {
@@ -274,16 +285,22 @@ void prepareWindows() {
 
   // Initialize Screen
   initscr();
+  start_color();
 
   // Set timeout of input to 2 miliseconds.
   halfdelay(2);
 
   // Create new MSG_SCREEN window and enable scrolling of text.
+  noecho();
   cbreak();
   MSG_SCREEN = newwin(LINES - INPUT_LINES, COLS, 0, 0);
   scrollok(MSG_SCREEN, TRUE);
   wsetscrreg(MSG_SCREEN, 0, LINES - INPUT_LINES - 1);
   wrefresh(MSG_SCREEN);
+
+  // SET Colors for window.
+  init_pair(1, COLOR_CYAN, COLOR_BLACK);
+  wbkgd(MSG_SCREEN, COLOR_PAIR(1));
 
   // Create new INPUT_SCREEN window. No scrolling.
   INPUT_SCREEN = newwin(INPUT_LINES, COLS, LINES - INPUT_LINES, 0);
@@ -323,15 +340,29 @@ bool getUserInput(string& inputStr) {
   // Can we display the text? Add to inputStr if yes.
   if (isprint(userText)) {
     inputStr += (char)userText;
+    waddch(INPUT_SCREEN, userText);
   }
   // Pressing <enter> signals that the user has 'sent' something.
-  else if (userText == ENTER_SYM) {
+  else {
+    // Allow for Backspacing.
+    if (userText == BACKSPACE_SYM || userText == DELETE_SYM) {
+      inputStr.replace(inputStr.length()-1, 1, "");
+      wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
+      userText = 32;
+      waddch(INPUT_SCREEN, userText);
+      wmove(INPUT_SCREEN, 1, 8 + inputStr.length());
+
+      // Show new screen.
+      wrefresh(INPUT_SCREEN);
+    }
+    
+    if (userText == ENTER_SYM) {
     // If inputStr isn't empty, it should be submitted.
-    if (inputStr.size() > 0) {
-      success = true;
+      if (inputStr.size() > 0) {
+	success = true;
+      }
     }
   }
-
   return success;
 }
 
@@ -340,6 +371,7 @@ void displayMsg(string &msg) {
   // Add Msg to screen.
   waddstr(MSG_SCREEN, msg.c_str());
   waddch(MSG_SCREEN, '\n');
+  
 
   // Show new screen.
   wrefresh(MSG_SCREEN);
