@@ -193,10 +193,11 @@ int main (int argNum, char* argValues[]) {
 	  cerr << "Couldn't get message from Host." << endl;
 	  break;
 	}
-	tmp = "/Host said: ";
+	tmp = "";
 	tmp.append(HostMsg);
 	displayMsg(tmp);
 	tmp.clear();
+	wrefresh(INPUT_SCREEN);
       }
     }
   }

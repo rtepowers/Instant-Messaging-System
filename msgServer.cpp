@@ -10,6 +10,8 @@
 #include<string>
 #include<ctime>
 #include<cstdlib>
+#include<tr1/unordered_map>
+#include<deque>
 
 // Network Functions
 #include<sys/types.h>
@@ -25,13 +27,34 @@
 
 using namespace std;
 
-// GLOBALS
-const int MAXPENDING = 20;
-
 // DATA TYPES
-struct threadArgs{
+struct threadArgs {
   int clientSock;
 };
+
+struct User {
+  string username;
+  string password;
+  time_t timeConnected;
+  bool isConnected;
+};
+
+struct Msg {
+  string to;
+  string from;
+  string msg;
+  string cmd;
+};
+
+
+// GLOBALS
+const int MAXPENDING = 20;
+tr1::unordered_map<string, User> UsersList;
+deque<Msg> MsgQueue;
+pthread_mutex_t MsgQueueLock;
+pthread_mutex_t UserListLock;
+int MsgStatus = pthread_mutex_init(&MsgQueueLock, NULL);
+int UserStatus = pthread_mutex_init(&UserListLock, NULL);
 
 // Function Prototypes
 void* clientThread(void* args_p);
@@ -63,6 +86,16 @@ long GetInteger(int HostSocks);
 // Function listens to socket for a network Long variable.
 // pre: HostSock must exist.
 // post: none
+
+void addToMsgQueue(Msg newMsg);
+// Function Handles adding messages to the MsgQueue.
+// pre: none
+// post: none
+
+void processMsg(string &msg, string &cmdName, string &userTo);
+// Function strips a msg value for data relating to commands and to users.
+// pre: cmdName and userTo should be "" by default.
+// post: msg will be reduced in size.
 
 int main(int argc, char* argv[]){
 
@@ -151,7 +184,7 @@ void* clientThread(void* args_p) {
   close(clientSock);
 
   // Quit thread
-  //pthread_exit(NULL);
+  pthread_exit(NULL);
 }
 
 void InstantMessage(int clientSock) {
@@ -191,7 +224,7 @@ void InstantMessage(int clientSock) {
 	cerr << "Unable to send Message. " << endl;
 	break;
       }
-      hasRead = false;
+      //hasRead = false;
     }
 
     // Read Data
@@ -297,4 +330,71 @@ bool SendInteger(int HostSock, int hostInt) {
   }
 
   return true;
+}
+
+void addToMsgQueue(Msg newMsg) {
+  pthread_mutex_lock(&MsgQueueLock);
+  pthread_mutex_unlock(&MsgQueueLock);
+}
+
+void SaveMsg(string msg, string userFrom) {
+  
+  // Local Variables
+  Msg newMsg;
+  newMsg.msg = msg;
+  newMsg.to = "";
+  newMsg.from = userFrom;
+  newMsg.cmd = "";
+  processMsg(newMsg.msg, newMsg.cmd, newMsg.to);
+
+  if (newMsg.to == "all") {
+    // Global Message
+  } else {
+    // Regular Private message.
+    addToMsgQueue(newMsg);
+  }
+}
+
+void processMsg(string &msg, string &cmdName, string &userTo) {
+  
+  // Turn
+  // "/msg user blahblahbah"
+  // into
+  // (blahblahblah, /msg, user)
+
+  if (msg[0] == "/") {
+    // Was a Command, Let's figure out what it was.
+    int cmdSize = 0;
+    for (int i = 1; i < msg.length(); i++) {
+      if (msg[i] == " ") {
+	cmdSize = i;
+	break;
+      }
+    }
+    // Build Command name
+    for (int i = 0; i < cmdSize; i++) {
+      cmdName.append(msg[i]);
+    }
+
+    int userSize = 0;
+    if (cmdName == "/msg") {
+      // Need to grab user information.
+      for (int i = cmdSize; i < msg.length(); i++) {
+	if (msg[i] == " " ) {
+	  userSize = i;
+	  break;
+	}
+      }
+      // Build UserTo
+      for (int i = cmdSize; i < userSize; i++) {
+	userTo.append(msg[i]);
+      }
+    }
+    
+    // Set our values
+    msg.replace(0, userSize+cmdSize, "");
+
+  } else {
+    userTo.append("all");
+  }
 }
