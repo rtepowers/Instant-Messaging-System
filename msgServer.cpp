@@ -102,6 +102,41 @@ void SaveMsg(string msg, string userFrom);
 // pre: none
 // post: none
 
+string GetMsgs(string username);
+// Function looks through the MsgQueue and compiles a list of messages to send.
+// pre: none
+// post: MsgQueue will have items removed.
+
+void setUserDisconnected (User newUser);
+// Function changes user status to disconnected.
+// pre: none
+// post: none
+
+void setUserConnected (User newUser);
+// Function changes user status to connected.
+// pre: none
+// post: user's timeConnected value is updated.
+
+bool isUserConnected (User newUser);
+// Function returns a user's connected status.
+// pre: none
+// post: none
+
+bool doesUserExist (string username);
+// Function tests the existence of a user in the UserList.
+// pre: none
+// post: none
+
+void addToUsersList (User newUser);
+// Function adds a user to the UserList.
+// pre: none
+// post: none
+
+bool loginUser (string username, string password);
+// Function checks login credentials against the UserList.
+// pre: none
+// post: none
+
 int main(int argc, char* argv[]){
 
   // Local Vars
@@ -205,6 +240,77 @@ void InstantMessage(int clientSock) {
 
   // Login Credentials
   string userName;
+  string userpwd;
+  bool hasAuthenticated = false;
+
+  // Login loop
+  while(!hasAuthenticated) {
+    long msgLength = GetInteger(clientSock);
+    if (msgLength <= 0) {
+      cerr << "Couldn't get integer from Client." << endl;
+      break;
+    }
+    userName = GetMessage(clientSock, msgLength);
+    if (clientMsg == "") {
+      cerr << "Couldn't get message from Client." << endl;
+      break;
+    }
+    msgLength = GetInteger(clientSock);
+    if (msgLength <= 0) {
+      cerr << "Couldn't get integer from Client." << endl;
+      break;
+    }
+    userpwd = GetMessage(clientSock, msgLength);
+    if (clientMsg == "") {
+      cerr << "Couldn't get message from Client." << endl;
+      break;
+    }
+    if (loginUser(userName, userpwd)) {
+      hasAuthenticated = true;
+      // Send back a successful message.
+      stringstream ss;
+      ss << "Login was successful!" << endl;
+      string msg = ss.str();
+      if (!SendInteger(clientSock, msg.length()+1)) {
+	cerr << "Unable to send Int. " << endl;
+	break;
+      }
+      if (!SendMessage(clientSock, msg)) {
+	cerr << "Unable to send Message. " << endl;
+	break;
+      }
+    } else {
+      // Check if user exists, if not then add them.
+      if (checkUser(userName)) {
+	// Send back a failure message.
+	stringstream ss;
+	ss << "Login has failed." << endl;
+	string msg = ss.str();
+	if (!SendInteger(clientSock, msg.length()+1)) {
+	  cerr << "Unable to send Int. " << endl;
+	  break;
+	}
+	if (!SendMessage(clientSock, msg)) {
+	  cerr << "Unable to send Message. " << endl;
+	  break;
+	}
+      } else {
+	hasAuthenticated = true;
+	// Send back a successful message.
+	stringstream ss;
+	ss << "User was successfully created!" << endl;
+	string msg = ss.str();
+	if (!SendInteger(clientSock, msg.length()+1)) {
+	  cerr << "Unable to send Int. " << endl;
+	  break;
+	}
+	if (!SendMessage(clientSock, msg)) {
+	  cerr << "Unable to send Message. " << endl;
+	  break;
+	}
+      }
+    }
+  }
 
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
@@ -427,6 +533,8 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 	ss << msg.c_str()[i];
 	userTo.append(ss.str());
       }
+    } else if (cmdName == "/all") {
+      userTo.append("all");
     }
     
     // Set our values
@@ -463,9 +571,9 @@ void addToUsersList (User newUser) {
   pthread_mutex_unlock(&UserListLock);
 }
 
-bool doesUserExist (User newUser) {
+bool doesUserExist (string username) {
   pthread_mutex_lock(&UserListLock);
-  tr1::unordered_map<string, User>::const_iterator got = UsersList.find (newUser.username);
+  tr1::unordered_map<string, User>::const_iterator got = UsersList.find (username);
   if (got == UsersList.end() ) {
     pthread_mutex_unlock(&UserListLock);
     return false;
