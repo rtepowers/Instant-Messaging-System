@@ -203,6 +203,9 @@ void InstantMessage(int clientSock) {
   int numberOfSocks = 0;
   bool hasRead = true;
 
+  // Login Credentials
+  string userName;
+
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
   tv.tv_sec = 3;
@@ -343,6 +346,31 @@ void addToMsgQueue(Msg newMsg) {
   pthread_mutex_unlock(&MsgQueueLock);
 }
 
+string GetMsgs(string username) {
+  stringstream ss;
+  pthread_mutex_lock(&MsgQueueLock);
+  for (int i = 0; i < MsgQueue.size(); i++) {
+    if (MsgQueue[i].to == username) {
+      if (MsgQueue[i].cmd == "/msg") {
+	// Msg was intended for our user.
+	ss << "pm from " << MsgQueue[i].from << ": ";
+	ss << MsgQueue[i].msg << endl;
+	MsgQueue.erase (MsgQueue.begin()+i);
+	i--;
+      } else if (MsgQueue[i].cmd == "/all") {
+	// Msg was intended for all users.
+	ss << MsgQueue[i].from << " said: ";
+	ss << MsgQueue[i].msg << endl;
+	MsgQueue.erase (MsgQueue.begin()+i);
+	i--;
+      }
+    }
+  }
+  pthread_mutex_unlock(&MsgQueueLock);
+  
+  return ss.str();
+}
+
 void SaveMsg(string msg, string userFrom) {
   
   // Local Variables
@@ -406,6 +434,26 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 
   } else {
     userTo.append("all");
+    cmdName = "/all";
+  }
+}
+
+bool loginUser (string username, string password) {
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::iterator got = UsersList.find (username);
+  if (got == UsersList.end() ) {
+    pthread_mutex_unlock(&UserListLock);
+    return false;
+  } else {
+    if (got->second.password == password) {
+      got->second.isConnected = true;
+      got->second.timeConnected = time(NULL);
+      pthread_mutex_unlock(&UserListLock);
+      return true;
+    } else {
+      pthread_mutex_unlock(&UserListLock);
+      return false;
+    }
   }
 }
 
@@ -425,7 +473,7 @@ bool doesUserExist (User newUser) {
     pthread_mutex_unlock(&UserListLock);
     return true;
   }
-  pthread_mutex_unlock(&UserListLock);
+  
 }
 
 bool isUserConnected (User newUser) {
@@ -443,7 +491,6 @@ bool isUserConnected (User newUser) {
       return false;
     }
   }
-  pthread_mutex_unlock(&UserListLock);
 }
 
 void setUserConnected (User newUser) {
@@ -453,6 +500,7 @@ void setUserConnected (User newUser) {
     pthread_mutex_unlock(&UserListLock);
   } else {
     got->second.isConnected = true;
+    got->second.timeConnected = time(NULL);
     pthread_mutex_unlock(&UserListLock);
   }
 }
