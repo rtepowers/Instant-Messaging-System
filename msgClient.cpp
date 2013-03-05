@@ -70,6 +70,26 @@ int openSocket (string hostName, unsigned short serverPort);
 // pre: none
 // post: none
 
+bool SendMessage(int HostSock, string msg);
+// Function sends message to Host socket.
+// pre: HostSock should exist.
+// post: none
+
+string GetMessage(int HostSock, int messageLength);
+// Function retrieves message from Host socket.
+// pre: HostSock should exist.
+// post: none
+
+bool SendInteger(int HostSock, int hostInt);
+// Function sends a network long variable over the network.
+// pre: HostSock must exist
+// post: none
+
+long GetInteger(int HostSocks);
+// Function listens to socket for a network Long variable.
+// pre: HostSock must exist.
+// post: none
+
 int main (int argNum, char* argValues[]) {
 
   // Locals
@@ -113,6 +133,7 @@ int main (int argNum, char* argValues[]) {
 	/*
 	  TODO - 
 	  SendMessage(hostSock, inputStr);
+	  inputStr.clear();
 
 	  string HostMsg = ReceiveMessage(hostSock);
 	  displayMsg(HostMsg);
@@ -130,6 +151,82 @@ int main (int argNum, char* argValues[]) {
   close(hostSock);
 
   return 0;
+}
+
+
+bool SendMessage(int HostSock, string msg) {
+
+  // Local Variables
+  int msgLength = msg.length()+1;
+  char msgBuff[msgLength];
+  strcpy(msgBuff, msg.c_str());
+  msgBuff[msgLength-1] = '\0';
+
+  // Since they now know how many bytes to receive, we'll send the message
+  int msgSent = send(HostSock, msgBuff, msgLength, 0);
+  if (msgSent != msgLength){
+    // Failed to send
+    cerr << "Unable to send data. Closing clientSocket: " << HostSock << "." << endl;
+    return false;
+  }
+
+  return true;
+}
+
+string GetMessage(int HostSock, int messageLength) {
+
+  // Retrieve msg
+  int bytesLeft = messageLength;
+  char buffer[messageLength];
+  char* buffPTR = buffer;
+  while (bytesLeft > 0){
+    int bytesRecv = recv(HostSock, buffPTR, messageLength, 0);
+    if (bytesRecv <= 0) {
+      // Failed to Read for some reason.
+      cerr << "Could not recv bytes. Closing clientSocket: " << HostSock << "." << endl;
+      return "";
+    }
+    bytesLeft = bytesLeft - bytesRecv;
+    buffPTR = buffPTR + bytesRecv;
+  }
+
+  return buffer;
+}
+
+long GetInteger(int HostSock) {
+
+  // Retreive length of msg
+  int bytesLeft = sizeof(long);
+  long networkInt;
+  char* bp = (char *) &networkInt;
+  
+  while (bytesLeft) {
+    int bytesRecv = recv(HostSock, bp, bytesLeft, 0);
+    if (bytesRecv <= 0){
+      // Failed to receive bytes
+      cerr << "Failed to receive bytes. Closing clientSocket: " << HostSock << "." << endl;
+      return -1;
+    }
+    bytesLeft = bytesLeft - bytesRecv;
+    bp = bp + bytesRecv;
+  }
+  return ntohl(networkInt);
+}
+
+bool SendInteger(int HostSock, int hostInt) {
+
+  // Local Variables
+  long networkInt = htonl(hostInt);
+
+  // Send Integer (as a long)
+  int didSend = send(HostSock, &networkInt, sizeof(long), 0);
+  if (didSend != sizeof(long)){
+    // Failed to Send
+    cerr << "Unable to send data. Closing clientSocket: " << HostSock << "."  << endl;
+    return false;
+  }
+
+  return true;
 }
 
 int openSocket (string hostName, unsigned short serverPort) {
@@ -182,6 +279,7 @@ void prepareWindows() {
   halfdelay(2);
 
   // Create new MSG_SCREEN window and enable scrolling of text.
+  cbreak();
   MSG_SCREEN = newwin(LINES - INPUT_LINES, COLS, 0, 0);
   scrollok(MSG_SCREEN, TRUE);
   wsetscrreg(MSG_SCREEN, 0, LINES - INPUT_LINES - 1);
@@ -213,18 +311,18 @@ bool getUserInput(string& inputStr) {
 
   // Locals
   bool success = false;
-  char userText;
+  int userText;
 
   // Get input from from the input screen. Timeout will occur if no characters are available.
   userText = wgetch(INPUT_SCREEN);
 
   // Did we return a proper value?
-  if (userText == (char)ERR)
+  if (userText == ERR)
     return false;
 
   // Can we display the text? Add to inputStr if yes.
   if (isprint(userText)) {
-    inputStr += userText;
+    inputStr += (char)userText;
   }
   // Pressing <enter> signals that the user has 'sent' something.
   else if (userText == ENTER_SYM) {
