@@ -264,18 +264,18 @@ void InstantMessage(int clientSock) {
 
     if (hasRead) {
       // Send Data.
-      stringstream ss;
-      ss << "This is Message #" << messageID++ << endl;
-      string msg = ss.str();
-      cout << msg << endl;
-      if (!SendInteger(clientSock, msg.length()+1)) {
-	cerr << "Unable to send Int. " << endl;
-	break;
-      }
+      string msg = GetMsgs(userName);
+      if (msg.length() != 0) {
+	cout << msg << endl;
+	if (!SendInteger(clientSock, msg.length()+1)) {
+	  cerr << "Unable to send Int. " << endl;
+	  break;
+	}
 
-      if (!SendMessage(clientSock, msg)) {
-	cerr << "Unable to send Message. " << endl;
-	break;
+	if (!SendMessage(clientSock, msg)) {
+	  cerr << "Unable to send Message. " << endl;
+	  break;
+	}
       }
     }
 
@@ -300,6 +300,10 @@ void InstantMessage(int clientSock) {
       tmp.append(clientMsg);
       cout << tmp << endl;
       tmp.clear();
+      
+      // Process message and Add to queue
+      SaveMsg(clientMsg, userName);
+      
     }
 
   }//*/
@@ -491,14 +495,14 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
     int userSize = 0;
     if (cmdName == "/msg") {
       // Need to grab user information.
-      for (int i = cmdSize; i < msg.length(); i++) {
+      for (int i = cmdSize+1; i < msg.length(); i++) {
 	if (msg.c_str()[i] == ' ' ) {
 	  userSize = i;
 	  break;
 	}
       }
       // Build UserTo
-      for (int i = cmdSize; i < userSize; i++) {
+      for (int i = cmdSize+1; i < userSize; i++) {
 	stringstream ss;
 	ss << msg.c_str()[i];
 	userTo.append(ss.str());
@@ -508,7 +512,7 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
     }
     
     // Set our values
-    msg.replace(0, userSize+cmdSize, "");
+    msg.replace(0, userSize+cmdSize-3, "");
 
   } else {
     userTo.append("all");
