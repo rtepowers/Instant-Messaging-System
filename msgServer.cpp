@@ -251,9 +251,12 @@ void InstantMessage(int clientSock) {
   while (!hasAuthenticated(clientSock, userName)) {
   }
 
+  // Announce That user has connected!
+  // TODO
+
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
-  tv.tv_sec = 3;
+  tv.tv_sec = 2;
   tv.tv_usec = 100000;
 
   // Initialize Data
@@ -262,22 +265,21 @@ void InstantMessage(int clientSock) {
 
   while (clientMsg != "/quit" && clientMsg != "/close") {
 
-    if (hasRead) {
-      // Send Data.
-      string msg = GetMsgs(userName);
-      if (msg.length() != 0) {
-	cout << msg << endl;
-	if (!SendInteger(clientSock, msg.length()+1)) {
-	  cerr << "Unable to send Int. " << endl;
-	  break;
-	}
+    // Send Data.
+    string msg = GetMsgs(userName);
+    if (msg.length() != 0) {
+      cout << msg << endl;
+      if (!SendInteger(clientSock, msg.length()+1)) {
+	cerr << "Unable to send Int. " << endl;
+	break;
+      }
 
-	if (!SendMessage(clientSock, msg)) {
-	  cerr << "Unable to send Message. " << endl;
-	  break;
-	}
+      if (!SendMessage(clientSock, msg)) {
+	cerr << "Unable to send Message. " << endl;
+	break;
       }
     }
+    
 
     // Read Data
     int pollSock = select(numberOfSocks, &clientfd, NULL, NULL, &tv);
@@ -302,13 +304,13 @@ void InstantMessage(int clientSock) {
       tmp.clear();
       
       // Process message and Add to queue
-      SaveMsg(clientMsg, userName);
-      
+      SaveMsg(clientMsg, userName); 
     }
-
   }//*/
 
   cout << "Closing Thread." << endl;
+  // Announce that user has disconnected
+  // TODO
 }
 
 bool hasAuthenticated(int clientSock, string &userName) {
