@@ -146,7 +146,7 @@ int main (int argNum, char* argValues[]) {
   while (!hasAuthenticated(hostSock, username)) {
   }
   
-  /*// Establish a Thread to handle displaying new messages.
+  // Establish a Thread to handle displaying new messages.
   struct threadArgs* args_p = new threadArgs;
   args_p -> clientSock = hostSock;
   pthread_t tid;
@@ -163,9 +163,38 @@ int main (int argNum, char* argValues[]) {
       // If the user finished typing a message, get it and process it.
       if (getUserInput(inputStr, false)) {
 
-	if (inputStr == "/quit") {
+	// If it's a command, handle it.
+	if (inputStr == "/quit" || inputStr == "/exit" || inputStr == "/close") {
+	  if (!SendInteger(hostSock, inputStr.length()+1)) {
+	    cerr << "Unable to send Int. " << endl;
+	    break;
+	  }
+	  if (!SendMessage(hostSock, inputStr)) {
+	    cerr << "Unable to send Message. " << endl;
+	    break;
+	  }
 	  break;
 	}
+
+	// Display message in chat window
+	string tmp = "You said: ";
+	tmp.append(inputStr);
+	tmp.append("\n");
+	displayMsg(tmp);
+
+	// Send to Server
+	if (!SendInteger(hostSock, inputStr.length()+1)) {
+	  cerr << "Unable to send Int. " << endl;
+	  break;
+	}
+
+	if (!SendMessage(hostSock, inputStr)) {
+	  cerr << "Unable to send Message. " << endl;
+	  break;
+	}
+
+
+	// Clean slate
 	inputStr.clear();
 	clearInputScreen();
       }

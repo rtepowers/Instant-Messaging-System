@@ -251,7 +251,7 @@ void InstantMessage(int clientSock) {
   while (!hasAuthenticated(clientSock, userName)) {
   }
 
-  /*
+  
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
   tv.tv_sec = 3;
@@ -283,7 +283,7 @@ void InstantMessage(int clientSock) {
 
     // Read Data
     int pollSock = select(numberOfSocks, &clientfd, NULL, NULL, &tv);
-    tv.tv_sec = 3;
+    tv.tv_sec = 1;
     tv.tv_usec = 100000;
     FD_SET(clientSock, &clientfd);
     if (pollSock != 0 && pollSock != -1) {
