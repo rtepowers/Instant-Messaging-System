@@ -208,14 +208,14 @@ int main (int argNum, char* argValues[]) {
   endwin();
   close(hostSock);
 
-  return 0;
+  exit(-1);
 }
 
 bool hasAuthenticated (int hostSock, string &username) {
 
   // Locals
-  string loginMsg = "Please enter your username.\n The system will create a new account if your username could not be found.\n";
-  string pwdMsg = "Please enter your password.\n";
+  string loginMsg = "Please enter your username.\nThe system will create a new account if your username could not be found.\n";
+  string pwdMsg = "\n\n\nPlease enter your password.\n";
   string userName;
   string userPwd;
   long responseLen = 0;
@@ -223,11 +223,14 @@ bool hasAuthenticated (int hostSock, string &username) {
 
   // Get UserName
   displayMsg(loginMsg);
+  wrefresh(INPUT_SCREEN);
   while (!getUserInput(userName, false)) {
   }
   clearInputScreen();
+
   // Get Password
   displayMsg(pwdMsg);
+  wrefresh(INPUT_SCREEN);
   while (!getUserInput(userPwd, true)) {
   }
   clearInputScreen();
@@ -539,6 +542,7 @@ void DisplayData (int hostSock) {
 	break;
       }
       displayMsg(clientMsg);
+      wrefresh(INPUT_SCREEN);
     }
   }
 }

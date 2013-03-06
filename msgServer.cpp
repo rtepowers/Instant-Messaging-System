@@ -251,7 +251,6 @@ void InstantMessage(int clientSock) {
   while (!hasAuthenticated(clientSock, userName)) {
   }
 
-  
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
   tv.tv_sec = 3;
@@ -278,7 +277,6 @@ void InstantMessage(int clientSock) {
 	cerr << "Unable to send Message. " << endl;
 	break;
       }
-      //hasRead = false;
     }
 
     // Read Data
@@ -302,10 +300,9 @@ void InstantMessage(int clientSock) {
       tmp.append(clientMsg);
       cout << tmp << endl;
       tmp.clear();
-      hasRead = true;
     }
 
-    }//*/
+  }//*/
 
   cout << "Closing Thread." << endl;
 }
