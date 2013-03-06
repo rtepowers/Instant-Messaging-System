@@ -21,6 +21,9 @@
 // User Interface
 #include<curses.h>
 
+// Multithreading
+#include<pthread.h>
+
 using namespace std;
 
 // GLOBALS
@@ -32,31 +35,22 @@ WINDOW *INPUT_SCREEN;
 WINDOW *MSG_SCREEN;
 fd_set hostfd;
 struct timeval tv;
-const short MSG_COLOR_BLACK = 0;
+/*const short MSG_COLOR_BLACK = 0;
 const short MSG_COLOR_RED = 1;
 const short MSG_COLOR_GREEN = 2;
 const short MSG_COLOR_YELLOW = 3;
 const short MSG_COLOR_BLUE = 4;
 const short MSG_COLOR_MAGENTA = 5;
 const short MSG_COLOR_CYAN = 6;
-const short MSG_COLOR_WHITE = 7;
+const short MSG_COLOR_WHITE = 7;*/
+pthread_mutex_t displayLock;
+int displayStatus = pthread_mutex_init(&displayLock, NULL);
+string serverRsp;
 
 
 // Data Structures
-struct sockAddr {
-  unsigned short sa_family;   // Address family (AF_INET)
-  char sa_data[14];           // Protocol-specific addressinfo
-};
-
-struct in_address {
-  unsigned long s_addr;       // Internet Address (32bits)
-};
-
-struct sockAddress_in {
-  unsigned short sin_family;  // Address family (AF_INET)
-  unsigned short sin_port;    // Port (16bits)
-  struct in_addr sin_addr;    // Internet address structure
-  char sin_zero[8];           // Not Used.
+struct threadArgs {
+  int clientSock;
 };
 
 // Function Prototypes
@@ -105,19 +99,30 @@ long GetInteger(int HostSocks);
 // pre: HostSock must exist.
 // post: none
 
+void* clientThread(void* args_p);
+// Function serves as the entry point to a new thread.
+// pre: none
+// post: none
+
+bool hasAuthenticated (int hostSock, string &username);
+// Function handles authentication with server.
+// pre: none
+// post: none
+
+void DisplayData (int hostSock);
+// Function loops over polling a socket for data.
+// pre: none
+// post: none
+
 int main (int argNum, char* argValues[]) {
 
   // Locals
   string inputStr;
   string hostname;
+  string username = "";
   unsigned short serverPort;
   int hostSock;
   int numberOfSocks;
-
-  // Clear FD_Set and set timeout.
-  FD_ZERO(&hostfd);
-  tv.tv_sec = 0;
-  tv.tv_usec = 100000;
 
   // Need to grab Command-line arguments and convert them to useful types
   // Initialize arguments with proper variables.
@@ -136,58 +141,21 @@ int main (int argNum, char* argValues[]) {
 
   // Establish a socket Connection
   hostSock = openSocket(hostname, serverPort);
-  FD_SET(hostSock, &hostfd);
-  numberOfSocks = hostSock + 1;
   
   // Login State
-  bool hasAuthenticated = false;
-  string username = "";
-  string userpwd = "";
-  while (!hasAuthenticated) {
-    string tmp = "Please enter your username. \n(A new account will be created if this is your first login.)\n";
-    displayMsg(tmp);
-    while (true) {
-      if (getUserInput(username, false)) {
-	clearInputScreen();
-	break;
-      }
-    }
-    tmp = "Please enter your password.\n";
-    displayMsg(tmp);
-    while (true) {
-      if (getUserInput(userpwd, true)) {
-	clearInputScreen();
-	break;
-      }
-    }
-
-    // Send User Credentials.
-    SendInteger(hostSock, username.length()+1);
-    SendMessage(hostSock, username);
-    SendInteger(hostSock, userpwd.length()+1);
-    SendMessage(hostSock, userpwd);
-
-    // Receive Response.
-    long msgLength = GetInteger(hostSock);
-    if (msgLength <= 0) {
-      cerr << "Couldn't get integer from Host." << endl;
-      break;
-    }
-    string HostMsg = GetMessage(hostSock, msgLength);
-    if (HostMsg == "") {
-      cerr << "Couldn't get message from Host." << endl;
-      break;
-    }
-    displayMsg(HostMsg);
-    stringstream ss;
-    ss << "Login was successful!" << endl;
-    if (HostMsg == ss.str()) {
-      // Login Successful.
-      hasAuthenticated = true;
-    }
+  while (!hasAuthenticated(hostSock, username)) {
   }
-
   
+  /*// Establish a Thread to handle displaying new messages.
+  struct threadArgs* args_p = new threadArgs;
+  args_p -> clientSock = hostSock;
+  pthread_t tid;
+  int threadStatus = pthread_create(&tid, NULL, clientThread, (void*)args_p);
+  if (threadStatus != 0){
+    // Failed to create child thread
+    cerr << "Failed to create child process." << endl;
+  }//*/
+
   if (hostSock > 0 ) {
     // Enter a loop to begin
     while (true) {
@@ -195,61 +163,16 @@ int main (int argNum, char* argValues[]) {
       // If the user finished typing a message, get it and process it.
       if (getUserInput(inputStr, false)) {
 
-	// If it's a command, handle it.
-	if (inputStr == "/quit" || inputStr == "/close" || inputStr == "/exit") {
-	  SendInteger(hostSock, inputStr.length()+1);
-	  SendMessage(hostSock, inputStr);
-	  break;
-	}
-          
-	// Display the message in the chat window.
-	string tmp = "You said: ";
-	tmp.append(inputStr);
-	tmp.append("\n");
-	displayMsg(tmp);
-	//inputStr.clear();
-
-	// Send to Server
-	if (!SendInteger(hostSock, inputStr.length()+1)) {
-	  cerr << "Unable to send Int. " << endl;
-	  break;
-	}
-
-	if (!SendMessage(hostSock, inputStr)) {
-	  cerr << "Unable to send Message. " << endl;
+	if (inputStr == "/quit") {
 	  break;
 	}
 	inputStr.clear();
-          
-	// Make sure to reset for the next user input.
 	clearInputScreen();
       }
-
-      // Check for Messages
-      int pollSock = select(numberOfSocks, &hostfd, NULL, NULL, &tv);
-      tv.tv_sec = 0;
-      tv.tv_usec = 100000;
-      FD_SET(hostSock, &hostfd);
-      if (pollSock != 0 && pollSock != -1) {
-	string tmp;
-	long msgLength = GetInteger(hostSock);
-	if (msgLength <= 0) {
-	  cerr << "Couldn't get integer from Host." << endl;
-	  break;
-	}
-	string HostMsg = GetMessage(hostSock, msgLength);
-	if (HostMsg == "") {
-	  cerr << "Couldn't get message from Host." << endl;
-	  break;
-	}
-	tmp = "";
-	tmp.append(HostMsg);
-	displayMsg(tmp);
-	tmp.clear();
-	wrefresh(INPUT_SCREEN);
-      }
     }
-  }
+  }//*/
+
+
   // Clean up and Close things down.
   delwin(INPUT_SCREEN);
   delwin(MSG_SCREEN);
@@ -257,6 +180,49 @@ int main (int argNum, char* argValues[]) {
   close(hostSock);
 
   return 0;
+}
+
+bool hasAuthenticated (int hostSock, string &username) {
+
+  // Locals
+  string loginMsg = "Please enter your username.\n The system will create a new account if your username could not be found.\n";
+  string pwdMsg = "Please enter your password.\n";
+  string userName;
+  string userPwd;
+  long responseLen = 0;
+  string hostResponse;
+
+  // Get UserName
+  displayMsg(loginMsg);
+  while (!getUserInput(userName, false)) {
+  }
+  clearInputScreen();
+  // Get Password
+  displayMsg(pwdMsg);
+  while (!getUserInput(userPwd, true)) {
+  }
+  clearInputScreen();
+  
+  // Send Data
+  SendInteger(hostSock, userName.length()+1);
+  SendMessage(hostSock, userName);
+  SendInteger(hostSock, userPwd.length()+1);
+  SendMessage(hostSock, userPwd);
+
+  // Receive Data
+  responseLen = GetInteger(hostSock);
+  hostResponse = GetMessage(hostSock, responseLen);
+
+  // Evaluate Host Response
+  if (hostResponse == "Login Successful!\n") {
+    // Login Sucessful!
+    username = userName;
+    return true;
+  } else {
+    // Login Failed
+    return false;
+  }
+
 }
 
 
@@ -361,7 +327,7 @@ int openSocket (string hostName, unsigned short serverPort) {
   status = inet_pton(AF_INET, tmpIP,(void*) &serverIP);
   if (status <= 0) return -1;
 
-  struct sockAddress_in serverAddress;
+  struct sockaddr_in serverAddress;
   serverAddress.sin_family = AF_INET;
   serverAddress.sin_addr.s_addr = serverIP ;
   serverAddress.sin_port = htons(serverPort);
@@ -467,9 +433,11 @@ bool getUserInput(string& inputStr, bool isPwd) {
 }
 
 void displayMsg(string &msg) {
-  
+  pthread_mutex_lock(&displayLock);
   // Add Msg to screen.
   if (msg.c_str()[0] == '/') {
+    string blank = "\n\n";
+    waddstr(MSG_SCREEN, blank.c_str());
     init_pair(2, COLOR_MAGENTA, COLOR_BLACK);
     wbkgd(MSG_SCREEN, COLOR_PAIR(2));
     
@@ -483,5 +451,65 @@ void displayMsg(string &msg) {
   
   // Show new screen.
   wrefresh(MSG_SCREEN);
+  pthread_mutex_unlock(&displayLock);
 
+}
+
+
+void* clientThread(void* args_p) {
+  
+  // Local Variables
+  threadArgs* tmp = (threadArgs*) args_p;
+  int hostSock = tmp -> clientSock;
+  delete tmp;
+
+  // Detach Thread to ensure that resources are deallocated on return.
+  pthread_detach(pthread_self());
+
+  // Communicate with Client
+  DisplayData(hostSock);
+
+  // Close Client socket
+  close(hostSock);
+
+  // Quit thread
+  pthread_exit(NULL);
+}
+
+void DisplayData (int hostSock) {
+
+  // Locals
+  bool canRead = true;
+  fd_set hostfd;
+  struct timeval tv;
+
+  // Clear FD_Set and set timeout.
+  FD_ZERO(&hostfd);
+  tv.tv_sec = 1;
+  tv.tv_usec = 10000;
+
+  // Initialize Data
+  FD_SET(hostSock, &hostfd);
+  int numberOfSocks = hostSock + 1;
+
+  while (canRead) {
+    // Read Data
+    int pollSock = select(numberOfSocks, &hostfd, NULL, NULL, &tv);
+    tv.tv_sec = 1;
+    tv.tv_usec = 10000;
+    FD_SET(hostSock, &hostfd);
+    if (pollSock != 0 && pollSock != -1) {
+      long msgLength = GetInteger(hostSock);
+      if (msgLength <= 0) {
+	cerr << "Couldn't get integer from Client." << endl;
+	break;
+      }
+      string clientMsg = GetMessage(hostSock, msgLength);
+      if (clientMsg == "") {
+	cerr << "Couldn't get message from Client." << endl;
+	break;
+      }
+      displayMsg(clientMsg);
+    }
+  }
 }

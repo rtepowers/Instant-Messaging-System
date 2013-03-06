@@ -137,6 +137,11 @@ bool loginUser (string username, string password);
 // pre: none
 // post: none
 
+bool hasAuthenticated(int clientSock, string &userName);
+// Function handles authentication of users.
+// pre: none
+// post: none
+
 int main(int argc, char* argv[]){
 
   // Local Vars
@@ -241,80 +246,12 @@ void InstantMessage(int clientSock) {
   // Login Credentials
   string userName;
   string userpwd;
-  bool hasAuthenticated = false;
 
   // Login loop
-  while(!hasAuthenticated) {
-    long msgLength = GetInteger(clientSock);
-    if (msgLength <= 0) {
-      cerr << "Couldn't get integer from Client." << endl;
-      break;
-    }
-    userName = GetMessage(clientSock, msgLength);
-    if (clientMsg == "") {
-      cerr << "Couldn't get message from Client." << endl;
-      break;
-    }
-    msgLength = GetInteger(clientSock);
-    if (msgLength <= 0) {
-      cerr << "Couldn't get integer from Client." << endl;
-      break;
-    }
-    userpwd = GetMessage(clientSock, msgLength);
-    if (clientMsg == "") {
-      cerr << "Couldn't get message from Client." << endl;
-      break;
-    }
-    if (loginUser(userName, userpwd)) {
-      hasAuthenticated = true;
-      // Send back a successful message.
-      stringstream ss;
-      ss << "Login was successful!" << endl;
-      string msg = ss.str();
-      cout << msg;
-      if (!SendInteger(clientSock, msg.length()+1)) {
-	cerr << "Unable to send Int. " << endl;
-	break;
-      }
-      if (!SendMessage(clientSock, msg)) {
-	cerr << "Unable to send Message. " << endl;
-	break;
-      }
-    } else {
-      // Check if user exists, if not then add them.
-      if (doesUserExist(userName)) {
-	// Send back a failure message.
-	stringstream ss;
-	ss << "Login has failed.\n";
-	string msg = ss.str();
-	cout << msg;
-	if (!SendInteger(clientSock, msg.length()+1)) {
-	  cerr << "Unable to send Int. " << endl;
-	  break;
-	}
-	if (!SendMessage(clientSock, msg)) {
-	  cerr << "Unable to send Message. " << endl;
-	  break;
-	}
-      } else {
-	hasAuthenticated = true;
-	// Send back a successful message.
-	stringstream ss;
-	ss << "Login was successful!" << endl;
-	string msg = ss.str();
-	cout << msg;
-	if (!SendInteger(clientSock, msg.length()+1)) {
-	  cerr << "Unable to send Int. " << endl;
-	  break;
-	}
-	if (!SendMessage(clientSock, msg)) {
-	  cerr << "Unable to send Message. " << endl;
-	  break;
-	}
-      }
-    }
+  while (!hasAuthenticated(clientSock, userName)) {
   }
 
+  /*
   // Clear FD_Set and set timeout.
   FD_ZERO(&clientfd);
   tv.tv_sec = 3;
@@ -368,11 +305,44 @@ void InstantMessage(int clientSock) {
       hasRead = true;
     }
 
-  }
+    }//*/
 
   cout << "Closing Thread." << endl;
 }
 
+bool hasAuthenticated(int clientSock, string &userName) {
+
+  // Locals
+  string loginSuccessMsg = "Login Successful!\n";
+  string loginFailureMsg = "Login Failed!\n";
+  string userPwd;
+  long responseLen = 0;
+  string clientResponse;
+
+  // Get UserName
+  responseLen = GetInteger(clientSock);
+  userName = GetMessage(clientSock, responseLen);
+
+  // Get Password
+  responseLen = GetInteger(clientSock);
+  userPwd = GetMessage(clientSock, responseLen);
+  
+  // Need to process username and password
+  if (loginUser (userName, userPwd)) {
+    // User Exists and password was successful.
+    // Send message to client
+    SendInteger(clientSock, loginSuccessMsg.length()+1);
+    SendMessage(clientSock, loginSuccessMsg);
+    cout << "Logged in as: " << userName << endl;
+    return true;
+  } else {
+    // User could not login.
+    SendInteger(clientSock, loginFailureMsg.length()+1);
+    SendMessage(clientSock, loginFailureMsg);
+    cout << "Failed to login as: " << userName << endl;
+    return false;
+  }
+}
 
 bool SendMessage(int HostSock, string msg) {
 
@@ -550,17 +520,32 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 }
 
 bool loginUser (string username, string password) {
+  // locals
+  User newUser;
+  newUser.username = username;
+  newUser.password = password;
+  newUser.isConnected = true;
+  newUser.timeConnected = time(NULL);
   pthread_mutex_lock(&UserListLock);
   tr1::unordered_map<string, User>::iterator got = UsersList.find (username);
   if (got == UsersList.end() ) {
+    // User not in list, so let's add them!
+    UsersList.insert (make_pair<string, User> (newUser.username, newUser));
     pthread_mutex_unlock(&UserListLock);
-    return false;
+    return true;
   } else {
     if (got->second.password == password) {
-      got->second.isConnected = true;
-      got->second.timeConnected = time(NULL);
-      pthread_mutex_unlock(&UserListLock);
-      return true;
+      if (got->second.isConnected) {
+	// someone else is already connected.
+	pthread_mutex_unlock(&UserListLock);
+	return false;
+      } else {
+	// Password matches, and not connected.
+	got->second.isConnected = true;
+	got->second.timeConnected = time(NULL);
+	pthread_mutex_unlock(&UserListLock);
+	return true;
+      }
     } else {
       pthread_mutex_unlock(&UserListLock);
       return false;
