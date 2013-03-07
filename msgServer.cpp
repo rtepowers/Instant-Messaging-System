@@ -107,7 +107,7 @@ string GetMsgs(string username);
 // pre: none
 // post: MsgQueue will have items removed.
 
-void setUserDisconnected (User newUser);
+void setUserDisconnected (string username);
 // Function changes user status to disconnected.
 // pre: none
 // post: none
@@ -139,6 +139,11 @@ bool loginUser (string username, string password);
 
 bool hasAuthenticated(int clientSock, string &userName);
 // Function handles authentication of users.
+// pre: none
+// post: none
+
+void broadcastMsg(string userName, string msg, bool isConnected);
+// Function allows system to create a broadcast message to all other users.
 // pre: none
 // post: none
 
@@ -252,6 +257,7 @@ void InstantMessage(int clientSock) {
   }
 
   // Announce That user has connected!
+  broadcastMsg( userName, "", true);
   // TODO
 
   // Clear FD_Set and set timeout.
@@ -309,9 +315,69 @@ void InstantMessage(int clientSock) {
   }//*/
 
   cout << "Closing Thread." << endl;
+  setUserDisconnected (userName);
   // Announce that user has disconnected
+  broadcastMsg(userName, "", false);
   // TODO
 }
+
+void broadcastMsg(string userName, string msg, bool isConnected) {
+
+  if (msg == "") {
+    // This is a login/logoff announcement.
+    msg = "";
+    Msg tmp;
+    tmp.to;
+    tmp.from = userName;
+    tmp.msg = msg;
+    tmp.cmd = "/all";
+
+    pthread_mutex_lock(&UserListLock);
+    tr1::unordered_map<string, User>::iterator got = UsersList.begin();
+    for ( ; got != UsersList.end(); got++) {
+      if ((got)->second.isConnected == true && (got)->second.username != userName) {
+	// Send them a message.
+	tmp.to = (got)->second.username;
+	msg.append (userName);
+	if (isConnected) {
+	  msg.append (" has connected! :)\n");
+	} else {
+	  msg.append (" has disconnected! :(\n");
+	}
+	tmp.msg = msg;
+	msg.clear();
+	addToMsgQueue(tmp);
+	tmp.msg.clear();
+	//SaveMsg(msg, userName);
+	
+      }
+    }
+    pthread_mutex_unlock(&UserListLock);
+  } else {
+    string globMsg = "";
+    globMsg.append (userName);
+    globMsg.append (" has said: ");
+    globMsg.append (msg);
+    Msg tmp;
+    tmp.from = userName;
+    tmp.msg = globMsg;
+    tmp.cmd = "/all";
+    // This is a global Msg
+    pthread_mutex_lock(&UserListLock);
+    tr1::unordered_map<string, User>::iterator got = UsersList.begin();
+    for ( ; got != UsersList.end(); got++) {
+      if ((got)->second.isConnected == true && (got)->second.username != userName) {
+	// Send them a message.
+	tmp.to = (got)->second.username;
+	addToMsgQueue(tmp);
+	//SaveMsg(msg, userName);
+	
+      }
+    }
+    pthread_mutex_unlock(&UserListLock);
+  }
+}
+
 
 bool hasAuthenticated(int clientSock, string &userName) {
 
@@ -441,7 +507,6 @@ string GetMsgs(string username) {
 	i--;
       } else if (MsgQueue[i].cmd == "/all") {
 	// Msg was intended for all users.
-	ss << MsgQueue[i].from << " said: ";
 	ss << MsgQueue[i].msg << endl;
 	MsgQueue.erase (MsgQueue.begin()+i);
 	i--;
@@ -465,6 +530,7 @@ void SaveMsg(string msg, string userFrom) {
 
   if (newMsg.to == "all") {
     // Global Message, need to add a message for all connected users.
+    broadcastMsg(userFrom, msg, false);
   } else {
     // Regular Private message.
     addToMsgQueue(newMsg);
@@ -509,9 +575,7 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 	ss << msg.c_str()[i];
 	userTo.append(ss.str());
       }
-    } else if (cmdName == "/all") {
-      userTo.append("all");
-    }
+    } 
     
     // Set our values
     msg.replace(0, userSize+cmdSize-3, "");
@@ -604,9 +668,9 @@ void setUserConnected (User newUser) {
   }
 }
 
-void setUserDisconnected (User newUser) {
+void setUserDisconnected (string username) {
   pthread_mutex_lock(&UserListLock);
-  tr1::unordered_map<string, User>::iterator got = UsersList.find (newUser.username);
+  tr1::unordered_map<string, User>::iterator got = UsersList.find (username);
   if (got == UsersList.end() ) {
     pthread_mutex_unlock(&UserListLock);
   } else {
