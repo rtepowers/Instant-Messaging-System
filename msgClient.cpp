@@ -145,6 +145,10 @@ int main (int argNum, char* argValues[]) {
   // Login State
   while (!hasAuthenticated(hostSock, username)) {
   }
+  string welcomeMsg = "\nWelcome to the Chat Program!\n\n";
+  displayMsg(welcomeMsg);
+  wrefresh(INPUT_SCREEN);
+  
   
   // Establish a Thread to handle displaying new messages.
   struct threadArgs* args_p = new threadArgs;
@@ -214,12 +218,18 @@ int main (int argNum, char* argValues[]) {
 bool hasAuthenticated (int hostSock, string &username) {
 
   // Locals
-  string loginMsg = "Please enter your username.\nThe system will create a new account if your username could not be found.\n";
-  string pwdMsg = "\n\n\nPlease enter your password.\n";
+  string loginMsg = "////////////////////////////////////////////////////////\nPlease enter your username.\nThe system will create a new account if your username could not be found.\n";
+  string pwdMsg = "/\b\nPlease enter your password.\n";
+  string clearScr = "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
   string userName;
   string userPwd;
   long responseLen = 0;
   string hostResponse;
+
+  // Reset Screen
+  displayMsg(clearScr);
+  wrefresh(INPUT_SCREEN);
+  clearInputScreen();
 
   // Get UserName
   displayMsg(loginMsg);
@@ -233,6 +243,11 @@ bool hasAuthenticated (int hostSock, string &username) {
   wrefresh(INPUT_SCREEN);
   while (!getUserInput(userPwd, true)) {
   }
+  clearInputScreen();
+
+  // Reset Screen
+  displayMsg(clearScr);
+  wrefresh(INPUT_SCREEN);
   clearInputScreen();
   
   // Send Data
@@ -253,6 +268,7 @@ bool hasAuthenticated (int hostSock, string &username) {
   } else {
     // Login Failed
     return false;
+    
   }
 
 }

@@ -147,6 +147,11 @@ void broadcastMsg(string userName, string msg, bool isConnected);
 // pre: none
 // post: none
 
+string GrabUsers(string userName);
+// Function returns a list of connected users.
+// pre: none
+// post: none
+
 int main(int argc, char* argv[]){
 
   // Local Vars
@@ -274,7 +279,7 @@ void InstantMessage(int clientSock) {
     // Send Data.
     string msg = GetMsgs(userName);
     if (msg.length() != 0) {
-      cout << msg << endl;
+      //cout << msg << endl;
       if (!SendInteger(clientSock, msg.length()+1)) {
 	cerr << "Unable to send Int. " << endl;
 	break;
@@ -318,7 +323,6 @@ void InstantMessage(int clientSock) {
   setUserDisconnected (userName);
   // Announce that user has disconnected
   broadcastMsg(userName, "", false);
-  // TODO
 }
 
 void broadcastMsg(string userName, string msg, bool isConnected) {
@@ -510,6 +514,10 @@ string GetMsgs(string username) {
 	ss << MsgQueue[i].msg << endl;
 	MsgQueue.erase (MsgQueue.begin()+i);
 	i--;
+      } else if (MsgQueue[i].cmd == "/users") {
+	ss << MsgQueue[i].msg << endl;
+	MsgQueue.erase (MsgQueue.begin()+i);
+	i--;
       }
     }
   }
@@ -528,11 +536,16 @@ void SaveMsg(string msg, string userFrom) {
   newMsg.cmd = "";
   processMsg(newMsg.msg, newMsg.cmd, newMsg.to);
 
-  if (newMsg.to == "all") {
+  if (newMsg.cmd == "/all") {
     // Global Message, need to add a message for all connected users.
     broadcastMsg(userFrom, msg, false);
-  } else {
+  } else if (newMsg.cmd == "/msg") {
     // Regular Private message.
+    addToMsgQueue(newMsg);
+  } else if (newMsg.cmd == "/users") {
+    newMsg.to = userFrom;
+    newMsg.from = "SERVER";
+    newMsg.msg = GrabUsers(userFrom);
     addToMsgQueue(newMsg);
   }
 }
@@ -552,6 +565,10 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 	cmdSize = i;
 	break;
       }
+    }
+    if (cmdSize == 0) {
+      // must be a non-argument command.
+      cmdSize = msg.length();
     }
     // Build Command name
     for (int i = 0; i < cmdSize; i++) {
@@ -575,15 +592,40 @@ void processMsg(string &msg, string &cmdName, string &userTo) {
 	ss << msg.c_str()[i];
 	userTo.append(ss.str());
       }
-    } 
     
-    // Set our values
-    msg.replace(0, userSize+cmdSize-3, "");
+      // Set our values
+      msg.replace(0, userSize+cmdSize-3, "");
+    } else if (cmdName == "/users") {
+      // Build list of users.
+      //userTo.append ("self");
+      cout << "IN THIS FUNCTION. " << cmdName << endl;
+    } 
+
 
   } else {
     userTo.append("all");
     cmdName = "/all";
   }
+}
+
+string GrabUsers(string userName) {
+
+  stringstream ss;
+  int numOfUsers = 1;
+  ss << "/\bCurrent Users: " << endl;
+
+  pthread_mutex_lock(&UserListLock);
+  tr1::unordered_map<string, User>::iterator got = UsersList.begin();
+  for ( ; got != UsersList.end(); got++) {
+    if ((got)->second.isConnected == true && (got)->second.username != userName) {
+      // Add to list
+      ss << numOfUsers++ << ". " << (got)->second.username << endl;
+	
+    }
+  }
+  pthread_mutex_unlock(&UserListLock);
+
+  return ss.str();
 }
 
 bool loginUser (string username, string password) {
