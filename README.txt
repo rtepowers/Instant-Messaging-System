@@ -1,5 +1,5 @@
 /*
-*		Programming Assignment 3: Instant-Messenger Application
+*		Instant-Messenger Application
 *		Created by Ray Powers, Nichole Minas, Ken Nicks, Huynh Nguyen
 *		© 2013
 */
