@@ -23,7 +23,7 @@ USAGE:
 	Server:
 		./msgServer [port #]
 	Client:
-		./msgClient [server address] [port #]
+		./msgClient [Hostname or Host IP address] [port #]
 
 ---
 NOTES:
