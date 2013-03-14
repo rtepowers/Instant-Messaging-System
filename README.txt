@@ -43,8 +43,8 @@ COMMANDS:
 
 	/time
 	/time <username>
-		These commands display the time for a specific user. If no user is specified,
-		the user calling the command will be substituted. 
+		These commands display the time for a specific user. 
+		If no user is specified, the user calling the command will be substituted. 
 
 	/joke
 		Displays a random joke.
