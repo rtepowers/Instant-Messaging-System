@@ -40,7 +40,7 @@ const short MSG_COLOR_RED = 1;
 const short MSG_COLOR_GREEN = 2;
 const short MSG_COLOR_YELLOW = 3;
 const short MSG_COLOR_BLUE = 4;
-const short MSG_COLOR_MAGENTA = 5;
+const short MSG_COLOR_MAGENTA = 5; 
 const short MSG_COLOR_CYAN = 6;
 const short MSG_COLOR_WHITE = 7;*/
 pthread_mutex_t displayLock;
