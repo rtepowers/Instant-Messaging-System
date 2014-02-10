@@ -2,7 +2,7 @@
 // DATE: November 26th, 2012
 // PLATFORM: C++ 
 
-// DESCRIPTION: This program serves as the server portion of the networked number game.
+// DESCRIPTION: This program serves as the server portion of the instant messaging system.
 
 // Standard Library
 #include<iostream>
