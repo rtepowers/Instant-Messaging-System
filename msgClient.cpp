@@ -145,10 +145,9 @@ int main (int argNum, char* argValues[]) {
   // Login State
   while (!hasAuthenticated(hostSock, username)) {
   }
-  string welcomeMsg = "\nWelcome to the Chat Program!\n\n";
+  string welcomeMsg = "\nWelcome!\n\n";
   displayMsg(welcomeMsg);
   wrefresh(INPUT_SCREEN);
-  
   
   // Establish a Thread to handle displaying new messages.
   struct threadArgs* args_p = new threadArgs;
@@ -197,14 +196,12 @@ int main (int argNum, char* argValues[]) {
 	  break;
 	}
 
-
 	// Clean slate
 	inputStr.clear();
 	clearInputScreen();
       }
     }
   }//*/
-
 
   // Clean up and Close things down.
   delwin(INPUT_SCREEN);
